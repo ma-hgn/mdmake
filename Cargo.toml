@@ -1,0 +1,16 @@
+[package]
+name = "mdmake"
+description = "generate static websites from a directory of markdown files."
+version = "1.0.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+clap = { version = "4.4.4", features = ["derive", "env", "wrap_help", "cargo"] }
+markdown = { version = "1.0.0-alpha.13" }
+regex = "1.9.5"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true
