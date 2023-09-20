@@ -303,7 +303,7 @@ fn get_file_title_html_tag(ast: mdast::Node) -> Option<String> {
 
     page_title
         .is_some()
-        .then_some(format!("<title>{}</title>\n", page_title.unwrap()))
+        .then(|| format!("<title>{}</title>\n", page_title.unwrap()))
 }
 
 fn get_html_style_link_tag(config: &Config, output_file_relative: PathBuf) -> Option<String> {
