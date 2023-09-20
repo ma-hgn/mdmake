@@ -4,10 +4,10 @@ You can also [manually specify](#usage) the input- and output directories, as we
 
 > Generate Static Websites from Directories of Markdown Files.
 
-1. #### [Features](#features)
-2. #### [Installation](#installation)
-3. #### [Quick Start](#quick-start)
-4. #### [Usage](#usage)
+1. [Features](#features)
+2. [Installation](#installation)
+3. [Quick Start](#quick-start)
+4. [Usage](#usage)
 
 ## Features
 
