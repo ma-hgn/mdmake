@@ -1,4 +1,3 @@
-You can also [manually specify](#usage) the input- and output directories, as well as style sheet-, header- and footer files.
 
 # 📜 mdmake
 
@@ -18,6 +17,7 @@ You can also [manually specify](#usage) the input- and output directories, as we
 - [x] Linking file against a CSS style sheet
 - [x] Convert nested directory structure of Markdown files to interlinked HTML-Pages
   - [x] Updating relative links to other Markdown files to point to their respective HTML output
+
   - [x] Linking all files against a single CSS style sheet
 
 ## Installation
@@ -56,10 +56,6 @@ Then execute `mdmake`.
 When not specifying an output folder. `./out` will be used.
 
 ```text
-src
-
-
-    Additionally, mdmake will look for style.css, header.html and footer.html in the input directory.
 ├── index.md
 ├── food
 │   ├── fried_rice.md
@@ -81,6 +77,7 @@ out
 
 
 You can also [manually specify](#usage) the input- and output directories, as well as style sheet-, header- and footer files.
+
 
 ## Usage
 
