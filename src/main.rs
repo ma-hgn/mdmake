@@ -212,6 +212,7 @@ fn watch_mode(config: &mut Config) {
                             _ => {
                                 println!("New File has been added: {}!", path.to_str().unwrap());
                                 println!("Compiling...");
+                                let _ = fs::create_dir_all(path.clone().parent().unwrap());
                                 compile_file(path.clone(), config);
                             }
                         }
