@@ -212,7 +212,14 @@ fn watch_mode(config: &mut Config) {
                             _ => {
                                 println!("New File has been added: {}!", path.to_str().unwrap());
                                 println!("Compiling...");
-                                let _ = fs::create_dir_all(path.clone().parent().unwrap());
+
+                                let file_relative = path.strip_prefix(&config.input_dir)
+                                    .expect("File that was tried to compile seems to not be within the input directory.");
+
+                                let _ = fs::create_dir_all(
+                                    config.output_dir.join(file_relative).parent().unwrap(),
+                                );
+
                                 compile_file(path.clone(), config);
                             }
                         }
@@ -322,14 +329,14 @@ fn compile_file(input_file: PathBuf, config: &Config) {
 fn walk_dir(start_dir: &PathBuf) -> io::Result<Vec<PathBuf>> {
     let mut entries = Vec::new();
 
-    if start_dir.is_dir() {
+    if start_dir.is_dir() && &start_dir.file_name().unwrap().to_str().unwrap()[..1] != "." {
         for entry in fs::read_dir(start_dir)? {
             let entry = entry?.path();
 
-            if entry.is_dir() {
-                entries.extend(walk_dir(&entry)?);
-            } else {
+            if entry.is_file() && &entry.file_name().unwrap().to_str().unwrap()[..1] != "." {
                 entries.push(entry);
+            } else {
+                entries.extend(walk_dir(&entry)?);
             }
         }
     }
