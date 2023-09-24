@@ -13,13 +13,13 @@ use std::{
 
 fn main() {
     let command = cli();
-    let config = Config::from(&command);
+    let mut config = Config::from(&command);
     let matches = command.get_matches();
 
     if matches.subcommand().is_some_and(|(cmd, _)| cmd == "watch") {
-        watch_mode(&config);
+        watch_mode(&mut config);
     } else {
-        compile_all(&config);
+        compile_all(&mut config);
     }
 }
 
@@ -43,8 +43,10 @@ struct Config {
     input_dir: PathBuf,
     output_dir: PathBuf,
     stylesheet: Option<PathBuf>,
-    header: Option<String>,
-    footer: Option<String>,
+    header: Option<PathBuf>,
+    footer: Option<PathBuf>,
+    header_contents: Option<String>,
+    footer_contents: Option<String>,
 }
 
 impl Config {
@@ -65,6 +67,22 @@ impl Config {
             _ => PathBuf::from("out"),
         };
 
+        let header = match matches.get_one::<String>("header") {
+            Some(path) => Some(PathBuf::from(path)),
+            None => {
+                let path = input_dir.join("header.html");
+                fs::metadata(&path).is_ok().then_some(path)
+            }
+        };
+
+        let footer = match matches.get_one::<String>("footer") {
+            Some(path) => Some(PathBuf::from(path)),
+            None => {
+                let path = input_dir.join("footer.html");
+                fs::metadata(&path).is_ok().then_some(path)
+            }
+        };
+
         if output_dir.is_file() {
             eprintln!("error: specified output directory path is an existing file.\n\nUsage: mdmake [OPTIONS] [COMMAND]\n\nFor more information, try '--help'.");
         }
@@ -73,37 +91,21 @@ impl Config {
             input_dir: input_dir.clone(),
             output_dir,
             stylesheet: match matches.get_one::<String>("style") {
-                Some(path) => Some(PathBuf::from(path)),
+                Some(file) => Some(PathBuf::from(file)),
                 None => {
                     let path = input_dir.join("style.css");
                     fs::metadata(&path).is_ok().then_some(path)
                 }
             },
-            header: match matches.get_one::<String>("header") {
-                Some(path) => String::get_file_contents(path),
-                _ => {
-                    let file = input_dir.join("header.html");
-                    match fs::metadata(&file) {
-                        Ok(_) => file.get_file_contents(),
-                        _ => None,
-                    }
-                }
-            },
-            footer: match matches.get_one::<String>("header") {
-                Some(path) => String::get_file_contents(path),
-                _ => {
-                    let file = input_dir.join("footer.html");
-                    match fs::metadata(&file) {
-                        Ok(_) => file.get_file_contents(),
-                        _ => None,
-                    }
-                }
-            },
+            header: header.clone(),
+            footer: footer.clone(),
+            header_contents: header.map(|file| file.get_file_contents()).flatten(),
+            footer_contents: footer.map(|file| file.get_file_contents()).flatten(),
         }
     }
 }
 
-fn watch_mode(config: &Config) {
+fn watch_mode(config: &mut Config) {
     compile_all(config);
     copy_stylesheet_to_output_dir(config);
 
@@ -131,31 +133,110 @@ fn watch_mode(config: &Config) {
                 let modified_time = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
 
                 match last_modified_times.entry(path.clone()) {
-                    Entry::Occupied(entry) => {
-                        if modified_time > *entry.get() {
-                            println!("File has been modified: {}!", path.to_str().unwrap());
-                            println!("Recompiling...");
-                            compile_file(path.clone(), config);
+                    Entry::Occupied(mut entry) => {
+                        if modified_time != *entry.get() {
+                            entry.insert(modified_time);
+                            match Some(path.clone()) {
+                                path if path == config.stylesheet => {
+                                    println!(
+                                        "Stylesheet has been modified: {}!",
+                                        path.unwrap().to_str().unwrap()
+                                    );
+                                    println!("Copying stylesheet to output...");
+                                    copy_stylesheet_to_output_dir(config);
+                                    println!("Recompiling all markdown files...");
+                                    compile_all(config);
+                                }
+                                path if path == config.header => {
+                                    println!(
+                                        "Header has been modified: {}!",
+                                        path.unwrap().to_str().unwrap()
+                                    );
+                                    println!("Recompiling all markdown files...");
+                                    compile_all(config);
+                                }
+                                path if path == config.footer => {
+                                    println!(
+                                        "Footer has been modified: {}!",
+                                        path.unwrap().to_str().unwrap()
+                                    );
+                                    println!("Recompiling all markdown files...");
+                                    compile_all(config);
+                                }
+                                _ => {
+                                    println!("File has been modified: {}!", path.to_str().unwrap());
+                                    println!("Recompiling...");
+                                    compile_file(path.clone(), config);
+                                }
+                            }
                         }
                     }
                     Entry::Vacant(entry) => {
                         entry.insert(modified_time);
-                        println!("New File has been added: {}!", path.to_str().unwrap());
-                        println!("Compiling...");
-                        compile_file(path.clone(), config);
+                        match Some(path.clone()) {
+                            path if path == config.stylesheet
+                                || path == Some(config.input_dir.join("style.css")) =>
+                            {
+                                config.stylesheet = path.clone();
+                                println!(
+                                    "New stylesheet has been added: {}!",
+                                    path.clone().unwrap().to_str().unwrap()
+                                );
+                                println!("Copying stylesheet to output...");
+                                copy_stylesheet_to_output_dir(config);
+                                println!("Recompiling all markdown files...");
+                                compile_all(config);
+                            }
+                            path if path == config.header
+                                || path == Some(config.input_dir.join("header.html")) =>
+                            {
+                                config.header = path.clone();
+                                println!(
+                                    "New header has been added: {}!",
+                                    path.clone().unwrap().to_str().unwrap()
+                                );
+                                println!("Recompiling all markdown files...");
+                                compile_all(config);
+                            }
+                            path if path == config.footer
+                                || path == Some(config.input_dir.join("footer.html")) =>
+                            {
+                                config.footer = path.clone();
+                                println!(
+                                    "New footer has been added: {}!",
+                                    path.clone().unwrap().to_str().unwrap()
+                                );
+                                println!("Recompiling all markdown files...");
+                                compile_all(config);
+                            }
+                            _ => {
+                                println!("New File has been added: {}!", path.to_str().unwrap());
+                                println!("Compiling...");
+                                compile_file(path.clone(), config);
+                            }
+                        }
                     }
                 }
             }
         }
+
         std::thread::sleep(Duration::from_secs(1));
     }
 }
 
-fn compile_all(config: &Config) {
+fn compile_all(config: &mut Config) {
     let _ = fs::remove_dir_all(&config.output_dir);
     let _ = fs::create_dir_all(&config.output_dir);
 
     copy_stylesheet_to_output_dir(config);
+
+    if let Some(header) = &config.header {
+        config.header_contents = header.get_file_contents();
+    }
+
+    if let Some(footer) = &config.footer {
+        config.footer_contents = footer.get_file_contents();
+    }
 
     fn compile_all_recurse(subdir: &PathBuf, config: &Config) {
         for entry in fs::read_dir(subdir).unwrap() {
@@ -216,11 +297,11 @@ fn compile_file(input_file: PathBuf, config: &Config) {
             .expect(r#"Failed writing HTML <link rel="stylesheet"> tag to output file."#);
     }
 
-    writeln!(out_fd, "\n</head>\n<body>")
+    write!(out_fd, "\n</head>\n<body>")
         .expect("Failed writing </head> closing tag and <body> opening tag to HTML output file.");
 
-    if let Some(header) = &config.header {
-        write!(out_fd, "{}", header)
+    if config.header.is_some() {
+        write!(out_fd, "{}", config.header_contents.as_ref().unwrap())
             .expect("Failed writing header file contents to output HTML file.");
     }
 
@@ -230,8 +311,8 @@ fn compile_file(input_file: PathBuf, config: &Config) {
     let main_body = markdown::to_html(&md_contents);
     write!(out_fd, "{}", main_body).expect("Couldn't append HTML-body to output HTML-file.");
 
-    if let Some(footer) = &config.footer {
-        write!(out_fd, "{}", footer)
+    if config.footer.is_some() {
+        write!(out_fd, "{}", config.footer_contents.as_ref().unwrap())
             .expect("Failed writing footer file contents to output HTML file.");
     }
     write!(out_fd, "</body>").expect("Failed writing HTML </body> closing tag to output file.");
